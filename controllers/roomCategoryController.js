@@ -1,17 +1,17 @@
 const RoomCategory = require("../models/roomCategory")
 
 exports.createRoomCategory = async (req, res) => {
-    const { roomName, roomDes, zooms } = req.body
-
-    // Valid
-    if (!roomName)
-        return res
-            .status(400)
-            .json({ code: 400, error: "Dữ liệu không hợp lệ" })
-
     try {
-        const newRoom = new RoomCategory({ roomName, roomDes })
-        await newRoom.save()
+        const { roomName, roomDes, zooms } = req.body
+
+        // Valid
+        if (!roomName)
+            return res
+                .status(400)
+                .json({ code: 400, error: "Dữ liệu không hợp lệ" })
+
+        const newRoom = new RoomCategory({ roomName, roomDes }).exec()
+        await newRoom.save().exec()
         res.status(200).json({ code: 200, data: { roomName, roomDes, zooms } })
     } catch (error) {
         return res.status(500).json({ code: 500, error })
@@ -22,6 +22,8 @@ exports.createRoomCategory = async (req, res) => {
 exports.getRoomCategory = async (req, res) => {
     try {
         const listRoom = await RoomCategory.find({ deleted: 0 })
+            .populate("zooms")
+            .exec()
         res.status(200).json({ code: 200, data: listRoom })
     } catch (error) {
         console.log({ error })
@@ -31,16 +33,16 @@ exports.getRoomCategory = async (req, res) => {
 
 // update
 exports.updateRoomCategory = async (req, res) => {
-    const { roomName, roomDes } = req.body
-    if (!roomName && !roomDes)
-        return res
-            .status(400)
-            .json({ code: 400, error: "Dữ liệu không hợp lệ" })
     try {
+        const { roomName, roomDes } = req.body
+        if (!roomName && !roomDes)
+            return res
+                .status(400)
+                .json({ code: 400, error: "Dữ liệu không hợp lệ" })
         const room = await RoomCategory.findOneAndUpdate(
             { _id: req.params.id },
             { $set: { roomName, roomDes } }
-        )
+        ).exec()
         res.status(200).json({ code: 200, data: room })
     } catch (error) {
         console.log({ error })
@@ -55,7 +57,7 @@ exports.deleteDraftRoomCategory = async (req, res) => {
             { _id: req.params.id },
             { $set: { deleted: 1 } },
             { new: true }
-        )
+        ).exec()
         res.status(200).json({
             code: 200,
             message: "Xoá thành công",
@@ -70,7 +72,7 @@ exports.deleteDraftRoomCategory = async (req, res) => {
 // delete luôn
 exports.deleteRoomCategory = async (req, res) => {
     try {
-        await RoomCategory.deleteOne({ _id: req.params.id })
+        await RoomCategory.deleteOne({ _id: req.params.id }).exec()
         res.status(200).json({ code: 200, message: "Xoá thành công" })
     } catch (error) {
         console.log({ error })

@@ -8,9 +8,10 @@ const { connectDb } = require("./connect/db")
 
 const roomCategoryRoute = require("./routes/roomCategoryRoute")
 const roomRoute = require("./routes/roomRoute")
+const timeRoute = require("./routes/timeRoute")
 
 const app = express()
-app.use(cors())
+app.use(cors({ methods: ["GET", "POST", "PUT", "PATCH", "DELETE"] }))
 app.use(express.json())
 
 // Kết nối MongoDB
@@ -25,6 +26,7 @@ app.use(bodyParser.json())
 // Routes
 app.use("/api/v1/roomCategory", roomCategoryRoute)
 app.use("/api/v1/room", roomRoute)
+app.use("/api/v1/time", timeRoute)
 
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () =>
