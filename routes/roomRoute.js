@@ -7,6 +7,7 @@ const {
     deleteDraftRoom,
     updateRoom,
     updatePriceScheduleRoom,
+    updateBookTimeRoom,
 } = require("../controllers/roomController")
 
 const router = express.Router()
@@ -17,5 +18,6 @@ router.patch("/update/:id", updateRoom)
 router.delete("/delete/:id", deleteRoom)
 router.patch("/deleteDraft/:id", deleteDraftRoom)
 router.patch("/updatePrice/:id", updatePriceScheduleRoom)
+router.patch("/updateBookTime", updateBookTimeRoom)
 
 module.exports = router

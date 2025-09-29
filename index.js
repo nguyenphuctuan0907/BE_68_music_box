@@ -9,6 +9,8 @@ const { connectDb } = require("./connect/db")
 const roomCategoryRoute = require("./routes/roomCategoryRoute")
 const roomRoute = require("./routes/roomRoute")
 const timeRoute = require("./routes/timeRoute")
+const userRoute = require("./routes/userRoute")
+const bookingRoute = require("./routes/bookingRoute")
 
 const app = express()
 app.use(cors({ methods: ["GET", "POST", "PUT", "PATCH", "DELETE"] }))
@@ -24,9 +26,11 @@ app.use(bodyParser.urlencoded({ extended: false }))
 app.use(bodyParser.json())
 
 // Routes
+app.use("/api/v1/user", userRoute)
 app.use("/api/v1/roomCategory", roomCategoryRoute)
 app.use("/api/v1/room", roomRoute)
 app.use("/api/v1/time", timeRoute)
+app.use("/api/v1/booking", bookingRoute)
 
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () =>

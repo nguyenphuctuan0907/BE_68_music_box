@@ -125,3 +125,64 @@ exports.updatePriceScheduleRoom = async (req, res) => {
         return res.status(500).json({ code: 500, error: error.message })
     }
 }
+
+const filterPriceId = (ID, data = []) =>
+    data.filter((item) => item.seatId == ID)
+
+// update book time
+exports.updateBookTimeRoom = async (req, res) => {
+    try {
+        const booking = req.body
+        const rooms = await Room.find({
+            _id: { $in: booking.roomIds },
+        })
+
+        for (let room of rooms) {
+            let updatedBookTime = []
+            if (room.bookTime.length < 1) {
+                updatedBookTime = {
+                    ...booking,
+                    slot: filterPriceId(room._id, booking.slot),
+                }
+            } else {
+                
+                
+
+                // updatedBookTime = booking.slot.map((bt) => {
+                //     console.log({ bt })
+                //     if (bt.phone === booking.phone) {
+                //         let updatedSlots = bt.slot.filter(
+                //             (s) =>
+                //                 !booking.slot.some(
+                //                     (newSlot) =>
+                //                         newSlot.timeTo === s.timeTo &&
+                //                         newSlot.deleted
+                //                 )
+                //         )
+
+                //         let newSlots = booking.slot.filter(
+                //             (newSlot) =>
+                //                 !updatedSlots.some(
+                //                     (s) => s.timeTo === newSlot.timeTo
+                //                 )
+                //         )
+
+                //         return { ...bt, slot: [...updatedSlots, ...newSlots] }
+                //     }
+                //     return bt
+                // })
+            }
+
+            console.log({ updatedBookTime })
+
+            await Room.updateOne(
+                { _id: room._id },
+                { $set: { bookTime: updatedBookTime } }
+            )
+        }
+        res.status(200).json({ code: 200, data: rooms })
+    } catch (error) {
+        console.log({ error })
+        return res.status(500).json({ code: 500, error: error.message })
+    }
+}
