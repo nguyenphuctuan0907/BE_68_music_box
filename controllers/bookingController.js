@@ -404,6 +404,17 @@ exports.reduceBookingTime = async (req, res) => {
                 result.data = await Booking.findOneAndDelete({ _id: id })
                 result.isDelete = true
             } else {
+                if (doc.isPrevTime) {
+                    const [startTime, endTime, day] = doc.isPrevTime.split("_")
+                    await Booking.updateOne(
+                        { day, startTime, endTime, room: doc.room },
+                        {
+                            $set: {
+                                isNextTime: `${startTime}_${reduceTime}_${day}`,
+                            },
+                        }
+                    )
+                }
                 doc.endTime = reduceTime // logic update
                 result.data = await doc.save()
                 result.isDelete = false
