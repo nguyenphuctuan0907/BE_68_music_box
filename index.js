@@ -25,6 +25,11 @@ app.use(bodyParser.urlencoded({ extended: false }))
 // parse application/json
 app.use(bodyParser.json())
 
+// Test route
+app.get("/", (req, res) => {
+    res.send("API backend is running 🚀")
+})
+
 // Routes
 app.use("/api/v1/user", userRoute)
 app.use("/api/v1/roomCategory", roomCategoryRoute)
