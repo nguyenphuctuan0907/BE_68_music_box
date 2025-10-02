@@ -10,6 +10,7 @@ const {
     lateBookingTime,
     earlyBookingTime,
     changeBookingRoom,
+    checkBookingsTime,
 } = require("../controllers/bookingController")
 
 const router = express.Router()
@@ -23,5 +24,6 @@ router.patch("/reduceTime", reduceBookingTime)
 router.patch("/lateBooking", lateBookingTime)
 router.patch("/earlyBooking", earlyBookingTime)
 router.patch("/changeRoom", changeBookingRoom)
+router.get("/checkTimeBookings", checkBookingsTime)
 
 module.exports = router

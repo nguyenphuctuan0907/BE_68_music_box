@@ -15,6 +15,9 @@ const bookingSchema = new mongoose.Schema(
         room: { type: String, default: null },
         isNextTime: { type: String, default: null },
         isPrevTime: { type: String, default: null },
+        inTime: { type: String, default: null }, // h vào chính xác
+        outTime: { type: String, default: null }, // h out chính xác
+        isExpired: { type: Boolean, default: false },
     },
     { timestamps: true }
 )

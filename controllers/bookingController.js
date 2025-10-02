@@ -1,3 +1,4 @@
+const { getIo } = require("../connect/socket")
 const Booking = require("../models/booking")
 const User = require("../models/user")
 // const { createUser } = require("./userController") Nên tách hàm tạo user riêng ra để dùng chung
@@ -31,10 +32,12 @@ exports.createBooking = async (req, res) => {
             user = await newUser.save()
         }
 
+        console.log({ data })
         // Create booking
         const id = findUser?._id || user?._id
         for (let i = 0; i < data.length; i++) {
             data[i].userId = id
+            data[i].isExpired = checkMinuteCurrent(data[i])
         }
         const newBooking = await Booking.insertMany(data)
 
@@ -50,7 +53,7 @@ exports.createBooking = async (req, res) => {
 
 exports.updateBooking = async (req, res) => {
     try {
-        const { name, phone, birthday } = req.body
+        const { name, phone, birthday, outTime, day } = req.body
         // Valid
         if (!name || !phone)
             return res.status(400).json({
@@ -60,7 +63,15 @@ exports.updateBooking = async (req, res) => {
 
         const newUser = User.findOneAndUpdate(
             { _id: req.params.id },
-            { $set: { name, phone, birthday } }
+            {
+                $set: {
+                    name,
+                    phone,
+                    birthday,
+                    isExpired: checkMinuteCurrent({ outTime, day }),
+                },
+            },
+            { new: true }
         )
         res.status(200).json({
             code: 200,
@@ -74,7 +85,7 @@ exports.updateBooking = async (req, res) => {
 exports.updateInfoBooking = async (req, res) => {
     try {
         const { ids, data } = req.body
-        const { name, phone } = data
+        const { name, phone, day, outTime } = data
         // Valid
         if (!name || !phone)
             return res.status(400).json({
@@ -82,6 +93,7 @@ exports.updateInfoBooking = async (req, res) => {
                 error: "Thông tin tên và số điện thoại là bắt buộc. Vui lòng cung cấp đầy đủ thông tin!",
             })
 
+        data.isExpired = checkMinuteCurrent({ day, outTime })
         await Booking.updateMany(
             { _id: { $in: ids } }, // lọc theo danh sách id
             { $set: data } // update chung 1 giá trị
@@ -105,92 +117,96 @@ exports.updateInfoBooking = async (req, res) => {
     }
 }
 
-// get
-exports.getBooking = async (req, res) => {
-    const { day } = req.query
-    const [from, to] = day.split(",")
-
-    try {
-        const listBooking = await Booking.aggregate([
-            {
-                $match: {
-                    day: { $in: day.split(",") },
-                },
+const handleGetBooking = async (day) => {
+    return await Booking.aggregate([
+        {
+            $match: {
+                day: { $in: day.split(",") },
             },
-            {
-                $addFields: {
-                    // Chuyển đổi day thành Date object để sort
-                    parsedDay: {
-                        $dateFromString: {
-                            dateString: {
-                                $concat: [
-                                    {
+        },
+        {
+            $addFields: {
+                // Chuyển đổi day thành Date object để sort
+                parsedDay: {
+                    $dateFromString: {
+                        dateString: {
+                            $concat: [
+                                {
+                                    $arrayElemAt: [
+                                        { $split: ["$day", "/"] },
+                                        2,
+                                    ],
+                                }, // year
+                                "-",
+                                {
+                                    $arrayElemAt: [
+                                        { $split: ["$day", "/"] },
+                                        1,
+                                    ],
+                                }, // month
+                                "-",
+                                {
+                                    $arrayElemAt: [
+                                        { $split: ["$day", "/"] },
+                                        0,
+                                    ],
+                                }, // day
+                            ],
+                        },
+                    },
+                },
+                // Chuyển đổi startTime thành phút để sort
+                startTimeInMinutes: {
+                    $add: [
+                        {
+                            $multiply: [
+                                {
+                                    $toInt: {
                                         $arrayElemAt: [
-                                            { $split: ["$day", "/"] },
-                                            2,
-                                        ],
-                                    }, // year
-                                    "-",
-                                    {
-                                        $arrayElemAt: [
-                                            { $split: ["$day", "/"] },
-                                            1,
-                                        ],
-                                    }, // month
-                                    "-",
-                                    {
-                                        $arrayElemAt: [
-                                            { $split: ["$day", "/"] },
+                                            {
+                                                $split: ["$startTime", ":"],
+                                            },
                                             0,
                                         ],
-                                    }, // day
+                                    },
+                                },
+                                60,
+                            ],
+                        },
+                        {
+                            $toInt: {
+                                $arrayElemAt: [
+                                    { $split: ["$startTime", ":"] },
+                                    1,
                                 ],
                             },
                         },
-                    },
-                    // Chuyển đổi startTime thành phút để sort
-                    startTimeInMinutes: {
-                        $add: [
-                            {
-                                $multiply: [
-                                    {
-                                        $toInt: {
-                                            $arrayElemAt: [
-                                                {
-                                                    $split: ["$startTime", ":"],
-                                                },
-                                                0,
-                                            ],
-                                        },
-                                    },
-                                    60,
-                                ],
-                            },
-                            {
-                                $toInt: {
-                                    $arrayElemAt: [
-                                        { $split: ["$startTime", ":"] },
-                                        1,
-                                    ],
-                                },
-                            },
-                        ],
-                    },
+                    ],
                 },
             },
-            {
-                $sort: {
-                    parsedDay: 1,
-                    startTimeInMinutes: 1,
-                },
+        },
+        {
+            $sort: {
+                parsedDay: 1,
+                startTimeInMinutes: 1,
             },
-            {
-                $project: {
-                    parsedDay: 0,
-                    startTimeInMinutes: 0,
-                },
+        },
+        {
+            $project: {
+                parsedDay: 0,
+                startTimeInMinutes: 0,
             },
-        ])
+        },
+    ])
+}
+
+// get
+exports.getBooking = async (req, res) => {
+    const { day } = req.query
+
+    try {
+        const listBooking = await handleGetBooking(day)
+
         res.status(200).json({ code: 200, data: listBooking })
     } catch (error) {
         console.log({ error })
@@ -328,6 +344,12 @@ exports.addBookingTime = async (req, res) => {
                 room: findBooking.room,
                 isPrevTime: `${findBooking.startTime}_${endTime}_${day}`,
                 isNextTime: null,
+                inTime: findBooking.inTime,
+                outTime: addTime,
+                isExpired: checkMinuteCurrent({
+                    outTime: addTime,
+                    day: addDay,
+                }),
             })
 
             await Booking.updateOne(
@@ -353,7 +375,17 @@ exports.addBookingTime = async (req, res) => {
 
             result = await Booking.findOneAndUpdate(
                 { _id: id },
-                { $set: { endTime: addTime }, new: true }, // trả về doc mới sau khi update >= 6
+                {
+                    $set: {
+                        endTime: addTime,
+                        isExpired: checkMinuteCurrent({
+                            outTime: timeCheck,
+                            day,
+                        }),
+                        outTime: addTime,
+                    },
+                    new: true,
+                }, // trả về doc mới sau khi update >= 6
                 { returnDocument: "after" } // trả về doc mới sau khi update với mongoose < 6
             )
             console.log({ result })
@@ -398,7 +430,7 @@ exports.reduceBookingTime = async (req, res) => {
                     const [startTime, endTime, day] = doc.isPrevTime.split("_")
                     await Booking.updateOne(
                         { day, startTime, endTime, room: doc.room },
-                        { $set: { isNextTime: null } }
+                        { $set: { isNextTime: null, outTime: endTime } }
                     )
                 }
                 result.data = await Booking.findOneAndDelete({ _id: id })
@@ -410,12 +442,17 @@ exports.reduceBookingTime = async (req, res) => {
                         { day, startTime, endTime, room: doc.room },
                         {
                             $set: {
-                                isNextTime: `${startTime}_${reduceTime}_${day}`,
+                                isNextTime: `${doc.startTime}_${reduceTime}_${doc.day}`,
                             },
                         }
                     )
                 }
                 doc.endTime = reduceTime // logic update
+                doc.outTime = reduceTime
+                doc.isExpired = checkMinuteCurrent({
+                    outTime: reduceTime,
+                    day: doc.day,
+                })
                 result.data = await doc.save()
                 result.isDelete = false
             }
@@ -445,12 +482,18 @@ exports.lateBookingTime = async (req, res) => {
             if (addTime === endTime) {
                 // 24:00
                 doc.isPrevTime = null
+                doc.inTime = doc.startTime
                 result = await doc.save()
-                await Booking.findOneAndDelete({ startTime, endTime, day })
+                await Booking.findOneAndDelete({
+                    startTime,
+                    endTime,
+                    day,
+                    room: doc.room,
+                })
             } else {
                 await Booking.findOneAndUpdate(
-                    { startTime, endTime, day },
-                    { $set: { startTime: addTime } }
+                    { startTime, endTime, day, room: doc.room },
+                    { $set: { startTime: addTime, inTime: addTime } }
                 )
                 doc.isPrevTime = `${addTime}_${endTime}_${day}`
                 result = await doc.save()
@@ -461,6 +504,7 @@ exports.lateBookingTime = async (req, res) => {
                 result = await Booking.deleteOne({ _id: id })
             } else {
                 doc.startTime = addTime // logic update
+                doc.inTime = addTime
                 result = await doc.save()
             }
         }
@@ -497,8 +541,9 @@ exports.earlyBookingTime = async (req, res) => {
                     day,
                     startTime,
                     endTime,
+                    room: doc.room,
                 },
-                { $set: { startTime: prevTime } }
+                { $set: { startTime: prevTime, inTime: prevTime } }
             )
 
             doc.isPrevTime = `${prevTime}_${endTime}_${day}`
@@ -528,6 +573,8 @@ exports.earlyBookingTime = async (req, res) => {
                     day: prevDay,
                     startTime: "23:30",
                     endTime: "24:00",
+                    inTime: "23:30",
+                    outTime: "24:00",
                     intent: doc.intent,
                     userId: doc.userId,
                     room: doc.room,
@@ -542,7 +589,7 @@ exports.earlyBookingTime = async (req, res) => {
                     })
                 result = await Booking.findOneAndUpdate(
                     { _id: id },
-                    { $set: { startTime: subTime } }
+                    { $set: { startTime: subTime, inTime: subTime } }
                 )
             }
         }
@@ -640,6 +687,86 @@ exports.changeBookingRoom = async (req, res) => {
             message: "Yêu cầu thực hiện thành công.",
             data: result,
         })
+    } catch (error) {
+        console.log({ error })
+        return res.status(500).json({ code: 500, error: error.message })
+    }
+}
+
+function timeToMinutes(timeStr) {
+    const [h, m] = timeStr.split(":").map(Number)
+    return h * 60 + m
+}
+
+function checkMinuteCurrent(time) {
+    const timeStr = time?.outTime || time // có thể truyền object booking hoặc chuỗi giờ
+    const date = time?.day
+    if (!timeStr || !date) return false
+    const [day, month, year] = date.split("/")
+    const targetDate = new Date(`${year}-${month}-${day}`)
+
+    if (targetDate > new Date()) return false
+    const now = new Date()
+    const hours = now.getHours().toString().padStart(2, "0")
+    const minutes = now.getMinutes().toString().padStart(2, "0")
+    const currentTime = `${hours}:${minutes}`
+
+    return timeToMinutes(timeStr) <= timeToMinutes(currentTime)
+}
+
+exports.checkBookingsTime = async (req, res) => {
+    try {
+        const now = new Date()
+
+        const d = now.getDate().toString().padStart(2, "0")
+        const m = (now.getMonth() + 1).toString().padStart(2, "0")
+        const y = now.getFullYear()
+        const currentDay = `${d}/${m}/${y}`
+
+        // nextDay
+        const tomorrow = new Date(now) // clone
+        tomorrow.setDate(now.getDate() + 1)
+        const d2 = tomorrow.getDate().toString().padStart(2, "0")
+        const m2 = (tomorrow.getMonth() + 1).toString().padStart(2, "0")
+        const y2 = tomorrow.getFullYear()
+        const nextDay = `${d2}/${m2}/${y2}`
+
+        // Lọc booking của hôm nay và đã hết giờ
+        const bookingsToday = await Booking.find({
+            day: currentDay,
+            // outTime: { $lte: currentTime }, phải kiểu date mới so sánh được
+            isExpired: false,
+        })
+
+        // Lọc bằng JS
+        const expiredBookings = bookingsToday.filter(checkMinuteCurrent)
+
+        if (expiredBookings.length) {
+            for (const booking of expiredBookings) {
+                booking.isExpired = true
+                await booking.save()
+            }
+
+            const bookings = await handleGetBooking(
+                [currentDay, nextDay].join(",")
+            )
+
+            const io = getIo()
+
+            io.emit("bookingExpired", {
+                bookingsExp: expiredBookings,
+                bookings: bookings,
+            })
+        }
+
+        if (res) {
+            return res.status(200).json({
+                code: 200,
+                message: "Kiểm tra và cập nhật booking hết giờ thành công.",
+                data: expiredBookings,
+            })
+        }
+        console.log("📢 Emit bookingExpired:", expiredBookings.length)
     } catch (error) {
         console.log({ error })
         return res.status(500).json({ code: 500, error: error.message })
