@@ -698,20 +698,26 @@ function timeToMinutes(timeStr) {
     return h * 60 + m
 }
 
-function checkMinuteCurrent(time) {
-    const timeStr = time?.outTime || time // có thể truyền object booking hoặc chuỗi giờ
-    const date = time?.day
-    if (!timeStr || !date) return false
-    const [day, month, year] = date.split("/")
-    const targetDate = new Date(`${year}-${month}-${day}`)
+function checkMinuteCurrent(data) {
+    const { day, outTime } = data
+    const [d, m, y] = day.split("/").map(Number)
+    const [hour, minute] = outTime.split(":").map(Number)
 
-    if (targetDate > new Date()) return false
-    const now = new Date()
-    const hours = now.getHours().toString().padStart(2, "0")
-    const minutes = now.getMinutes().toString().padStart(2, "0")
-    const currentTime = `${hours}:${minutes}`
+    // Tạo datetime của outTime theo VN
+    const outDateTime = moment.tz(
+        `${y}-${m.toString().padStart(2, "0")}-${d
+            .toString()
+            .padStart(2, "0")} ${hour.toString().padStart(2, "0")}:${minute
+            .toString()
+            .padStart(2, "0")}`,
+        "YYYY-MM-DD HH:mm",
+        "Asia/Ho_Chi_Minh"
+    )
 
-    return timeToMinutes(timeStr) <= timeToMinutes(currentTime)
+    // Lấy thời gian hiện tại VN
+    const nowVN = moment.tz("Asia/Ho_Chi_Minh")
+
+    return outDateTime.isSameOrBefore(nowVN)
 }
 
 exports.checkBookingsTime = async (req, res) => {
